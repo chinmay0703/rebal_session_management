@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { Loader2, X, AlertTriangle } from 'lucide-react';
+import { Loader2, X, AlertTriangle, ChevronDown, Check } from 'lucide-react';
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -106,6 +106,115 @@ export function Select({ label, error, options, placeholder, className, ...props
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+// Custom Dropdown Select
+interface CustomSelectProps {
+  label?: string;
+  error?: string;
+  required?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string; description?: string }>;
+  placeholder?: string;
+  className?: string;
+}
+
+export function CustomSelect({ label, error, required, value, onChange, options, placeholder = 'Select...', className }: CustomSelectProps) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+  const selected = options.find(o => o.value === value);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+
+  useEffect(() => {
+    if (open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    }
+  }, [open]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (wrapperRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    if (open) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  const dropdownContent = open ? (
+    <Portal>
+      <div
+        ref={dropdownRef}
+        className="fixed bg-white rounded-xl border border-surface-200 shadow-xl overflow-hidden animate-slide-up"
+        style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 9999, animationDuration: '0.15s' }}
+      >
+        <div className="max-h-[240px] overflow-y-auto py-1">
+          {options.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-surface-400 text-center">No options available</p>
+          ) : (
+            options.map((option) => {
+              const isSelected = option.value === value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => { onChange(option.value); setOpen(false); }}
+                  className={cn(
+                    'w-full px-4 py-2.5 flex items-center gap-3 text-left transition-colors cursor-pointer',
+                    isSelected ? 'bg-brand-50' : 'hover:bg-surface-50'
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className={cn('text-sm truncate', isSelected ? 'text-brand-700 font-medium' : 'text-surface-800')}>
+                      {option.label}
+                    </p>
+                    {option.description && (
+                      <p className="text-xs text-surface-400 mt-0.5">{option.description}</p>
+                    )}
+                  </div>
+                  {isSelected && <Check className="w-4 h-4 text-brand-600 flex-shrink-0" />}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </Portal>
+  ) : null;
+
+  return (
+    <div className="space-y-1.5" ref={wrapperRef}>
+      {label && (
+        <label className="block text-sm font-medium text-surface-600">
+          {label}
+          {required && <span className="text-red-400 ml-0.5">*</span>}
+        </label>
+      )}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={cn(
+          'w-full px-4 py-2.5 rounded-xl border bg-white text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer',
+          open ? 'border-brand-400 ring-2 ring-brand-100' : 'border-surface-200 hover:border-surface-300',
+          error && 'border-red-300',
+          className
+        )}
+      >
+        <span className={cn('truncate text-sm', selected ? 'text-surface-800' : 'text-surface-400')}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown className={cn('w-4 h-4 text-surface-400 flex-shrink-0 transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+      {dropdownContent}
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );

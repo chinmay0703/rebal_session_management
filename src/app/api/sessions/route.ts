@@ -44,15 +44,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'All sessions in this package have been completed' }, { status: 400 });
   }
 
-  // Prevent duplicate within 10 minutes
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-  const recentSession = await Session.findOne({
+  // Prevent more than one session per day
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+  const todaySession = await Session.findOne({
     patient_id,
-    scan_time: { $gte: tenMinutesAgo },
+    scan_time: { $gte: todayStart, $lte: todayEnd },
   });
 
-  if (recentSession) {
-    return NextResponse.json({ error: 'A session was already started within the last 10 minutes' }, { status: 400 });
+  if (todaySession) {
+    return NextResponse.json({ error: 'Session already recorded for today. Only one session per day is allowed.' }, { status: 400 });
   }
 
   const session = await Session.create({

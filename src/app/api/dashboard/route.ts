@@ -25,6 +25,7 @@ export async function GET() {
   let totalSessionsPending = 0;
   const completingSoon: Array<{ _id: string; name: string; mobile: string; package_name: string; sessions_remaining: number }> = [];
   const expiringSoon: Array<{ _id: string; name: string; mobile: string; package_name: string; days_left: number }> = [];
+  const noShow: Array<{ _id: string; name: string; mobile: string; package_name: string; days_since: number }> = [];
   let activeCount = 0;
   let completedCount = 0;
   let expiredCount = 0;
@@ -80,6 +81,26 @@ export async function GET() {
         days_left: daysLeft,
       });
     }
+
+    // No show: active patients who haven't visited in 7+ days
+    if (newStatus === 'active' && remaining > 0) {
+      const patientSessions = allSessions
+        .filter(s => s.patient_id.toString() === patient._id.toString())
+        .sort((a, b) => new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime());
+      const lastVisit = patientSessions.length > 0
+        ? new Date(patientSessions[0].scan_time)
+        : new Date(patient.start_date);
+      const daysSince = Math.floor((Date.now() - lastVisit.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSince >= 7) {
+        noShow.push({
+          _id: patient._id.toString(),
+          name: patient.name,
+          mobile: patient.mobile,
+          package_name: patient.package_id?.name || 'N/A',
+          days_since: daysSince,
+        });
+      }
+    }
   }
 
   // Today's feed
@@ -102,6 +123,7 @@ export async function GET() {
     expired_patients: expiredCount,
     completing_soon: completingSoon,
     expiring_soon: expiringSoon,
+    no_show: noShow.sort((a, b) => b.days_since - a.days_since),
     today_feed: todayFeed,
   });
 }

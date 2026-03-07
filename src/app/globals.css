@@ -32,11 +32,23 @@
   --color-accent-rose: #f43f5e;
 }
 
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 640px) {
+  html {
+    font-size: 16px;
+  }
+}
+
 body {
   background: var(--color-surface-50);
   color: var(--color-surface-900);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
 }
 
 ::selection {
@@ -111,4 +123,42 @@ body {
 
 .animate-check-success {
   animation: check-success 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes shimmer-bg {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-btn {
+  background-size: 200% 100%;
+  animation: shimmer-bg 2s linear infinite;
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-count-up {
+  animation: count-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes ring-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(2, 116, 195, 0.3); }
+  70% { box-shadow: 0 0 0 12px rgba(2, 116, 195, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(2, 116, 195, 0); }
+}
+
+.animate-ring-pulse {
+  animation: ring-pulse 2s ease-out infinite;
 }

@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Card, Badge, ProgressBar, Button, Input, Select, Textarea, Modal, Skeleton, ConfirmDialog } from '@/components/ui/components';
+import { Card, Badge, ProgressBar, Button, Input, CustomSelect, Textarea, Modal, Skeleton, ConfirmDialog } from '@/components/ui/components';
 import WhatsappPicker from '@/components/WhatsappPicker';
 import {
   ArrowLeft, User, Phone, Package, Calendar, Clock, Hash,
@@ -134,7 +134,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-4xl mx-auto">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-64" />
         <Skeleton className="h-48" />
@@ -147,12 +147,17 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const sc = statusConfig[patient.status] || statusConfig.active;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/admin/patients">
-          <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>Back</Button>
-        </Link>
+        <button onClick={() => router.back()}
+          className="w-10 h-10 rounded-xl bg-white border border-surface-200 flex items-center justify-center hover:bg-surface-50 transition-colors cursor-pointer">
+          <ArrowLeft className="w-5 h-5 text-surface-500" />
+        </button>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-surface-900">{patient.name}</h1>
+          <p className="text-xs sm:text-sm text-surface-400">Patient Details</p>
+        </div>
       </div>
 
       {/* Patient Info Card */}
@@ -239,7 +244,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
             <p className="text-center text-surface-400 py-6">No sessions recorded yet</p>
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {sessions.map((session, i) => (
               <Card key={session._id} className={`!p-4 animate-slide-up stagger-${Math.min(i + 1, 4)}`}>
                 <div className="flex items-center justify-between">
@@ -248,12 +253,12 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                       <span className="text-brand-600 font-bold text-xs">#{session.session_number}</span>
                     </div>
                     <div>
-                      <p className="font-medium text-surface-800">Session {session.session_number}</p>
+                      <p className="font-medium text-surface-800 text-sm">Session {session.session_number}</p>
                     </div>
                   </div>
-                  <div className="text-sm text-surface-400">
-                    <span>{new Date(session.scan_time).toLocaleDateString()}</span>
-                    <span className="ml-3">{new Date(session.scan_time).toLocaleTimeString()}</span>
+                  <div className="text-xs text-surface-400 text-right">
+                    <p>{new Date(session.scan_time).toLocaleDateString()}</p>
+                    <p>{new Date(session.scan_time).toLocaleTimeString()}</p>
                   </div>
                 </div>
               </Card>
@@ -281,13 +286,13 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
             This will clear all existing session records and assign a new package.
           </div>
-          <Select
+          <CustomSelect
             label="New Package"
             required
             value={renewForm.package_id}
-            onChange={(e) => setRenewForm({ ...renewForm, package_id: e.target.value })}
+            onChange={(val) => setRenewForm({ ...renewForm, package_id: val })}
             placeholder="Choose a package"
-            options={packages.map((p) => ({ value: p._id, label: `${p.name} (${p.total_sessions} sessions)` }))}
+            options={packages.map((p) => ({ value: p._id, label: p.name, description: `${p.total_sessions} sessions` }))}
           />
           <Input
             label="New Start Date"

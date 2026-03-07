@@ -24,6 +24,7 @@ const categoryColors: Record<string, string> = {
   review: 'bg-sky-50 text-sky-700',
   followup: 'bg-violet-50 text-violet-700',
   payment: 'bg-emerald-50 text-emerald-700',
+  holiday: 'bg-rose-50 text-rose-700',
   general: 'bg-surface-100 text-surface-600',
 };
 

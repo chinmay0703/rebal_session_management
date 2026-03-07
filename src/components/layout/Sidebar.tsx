@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import Link from 'next/link';
+
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
@@ -31,12 +32,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-surface-50">
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-surface-100 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">SM</span>
-          </div>
-          <span className="font-semibold text-surface-800">Session Manager</span>
-        </div>
+        <img src="/logo.jpg" alt="Logo" className="h-9 w-auto rounded-xl object-contain" />
         <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-lg hover:bg-surface-100 cursor-pointer">
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -54,14 +50,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         <div className="p-6 border-b border-surface-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-              <span className="text-white font-bold text-lg">SM</span>
-            </div>
-            <div>
-              <h1 className="font-bold text-surface-800">Session Manager</h1>
-              <p className="text-xs text-surface-400">Clinic Portal</p>
-            </div>
+          <div className="flex items-center justify-center">
+            <img src="/logo.jpg" alt="Logo" className="h-12 w-auto rounded-xl object-contain" />
           </div>
         </div>
 

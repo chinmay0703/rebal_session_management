@@ -2,9 +2,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, Badge, ProgressBar, EmptyState, ConfirmDialog, Skeleton, SearchInput, Button } from '@/components/ui/components';
-import { Users, Eye, Trash2, UserPlus, Phone, MessageCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, Eye, Trash2, UserPlus, Phone, MessageCircle, CheckCircle2, XCircle, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import WhatsappPicker from '@/components/WhatsappPicker';
+import WhatsappBroadcast from '@/components/WhatsappBroadcast';
 
 interface PatientWithData {
   _id: string;
@@ -33,6 +34,7 @@ export default function PatientsPage() {
   const [deleteTarget, setDeleteTarget] = useState<PatientWithData | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [whatsappTarget, setWhatsappTarget] = useState<PatientWithData | null>(null);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,26 +100,32 @@ export default function PatientsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-surface-900">Patients</h1>
           <p className="text-surface-400 mt-1">{patients.length} registered patients</p>
         </div>
-        <Link href="/admin/add-patient">
-          <Button icon={<UserPlus className="w-4 h-4" />}>Add Patient</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setBroadcastOpen(true)}
+            icon={<Send className="w-4 h-4 text-emerald-500" />}>
+            <span className="hidden sm:inline">Broadcast</span>
+          </Button>
+          <Link href="/admin/add-patient">
+            <Button icon={<UserPlus className="w-4 h-4" />}>Add Patient</Button>
+          </Link>
+        </div>
       </div>
 
       <SearchInput value={search} onChange={setSearch} placeholder="Search by name or mobile..." />
 
       {/* Status Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         {(['all', 'active', 'completed', 'expired'] as const).map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap cursor-pointer min-w-[70px] ${
               statusFilter === status
                 ? 'bg-brand-600 text-white shadow-sm'
                 : 'bg-white text-surface-500 border border-surface-200 hover:bg-surface-50'
@@ -192,13 +200,16 @@ export default function PatientsPage() {
                     <ProgressBar value={completed} max={total} className="mt-3" />
                   </Link>
 
-                  <div className="flex items-center gap-1 sm:flex-col">
-                    <Link href={`/admin/patients/${patient._id}`}>
-                      <Button variant="ghost" size="sm" icon={<Eye className="w-4 h-4" />}>View</Button>
+                  <div className="flex items-center gap-1 border-t sm:border-t-0 sm:border-l border-surface-100 pt-3 sm:pt-0 sm:pl-3 sm:flex-col mt-1 sm:mt-0">
+                    <Link href={`/admin/patients/${patient._id}`} className="flex-1 sm:flex-none">
+                      <Button variant="ghost" size="sm" icon={<Eye className="w-4 h-4" />} className="w-full sm:w-auto !py-2.5">View</Button>
                     </Link>
                     <Button variant="ghost" size="sm" icon={<MessageCircle className="w-4 h-4 text-emerald-500" />}
-                      onClick={(e) => { e.preventDefault(); setWhatsappTarget(patient); }} />
-                    <Button variant="ghost" size="sm" icon={<Trash2 className="w-4 h-4 text-red-400" />} onClick={() => setDeleteTarget(patient)} />
+                      onClick={(e) => { e.preventDefault(); setWhatsappTarget(patient); }}
+                      className="flex-1 sm:flex-none !py-2.5" />
+                    <Button variant="ghost" size="sm" icon={<Trash2 className="w-4 h-4 text-red-400" />}
+                      onClick={() => setDeleteTarget(patient)}
+                      className="flex-1 sm:flex-none !py-2.5" />
                   </div>
                 </div>
               </Card>
@@ -214,6 +225,21 @@ export default function PatientsPage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}
+      />
+
+      <WhatsappBroadcast
+        open={broadcastOpen}
+        onClose={() => setBroadcastOpen(false)}
+        patients={patients
+          .filter(p => (p.status || 'active') === 'active')
+          .map(p => ({
+            name: p.name,
+            mobile: p.mobile,
+            package_name: p.package_id?.name || 'N/A',
+            sessions_done: p.sessions_completed || 0,
+            sessions_left: (p.package_id?.total_sessions || 0) - (p.sessions_completed || 0),
+            total_sessions: p.package_id?.total_sessions || 0,
+          }))}
       />
 
       {whatsappTarget && (

@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Card, Badge, Skeleton, SearchInput, Button } from '@/components/ui/components';
+import { Card, Badge, Skeleton, SearchInput, Button, Modal, Input } from '@/components/ui/components';
 import {
   Users, Package, CalendarCheck, Clock, ScanLine,
-  AlertTriangle, Timer, CheckCircle2, XCircle, MessageCircle, Phone
+  AlertTriangle, Timer, CheckCircle2, XCircle, MessageCircle, Phone,
+  UserX, RefreshCw, Zap
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface FeedItem {
   _id: string;
@@ -22,6 +24,7 @@ interface AlertItem {
   package_name: string;
   sessions_remaining?: number;
   days_left?: number;
+  days_since?: number;
 }
 
 interface DashboardData {
@@ -35,6 +38,7 @@ interface DashboardData {
   expired_patients: number;
   completing_soon: AlertItem[];
   expiring_soon: AlertItem[];
+  no_show: AlertItem[];
   today_feed: FeedItem[];
 }
 
@@ -44,13 +48,36 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{ _id: string; name: string; mobile: string }>>([]);
   const [searching, setSearching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [origin, setOrigin] = useState('');
 
-  useEffect(() => {
-    fetch('/api/dashboard')
-      .then((r) => r.json())
-      .then(setData)
-      .finally(() => setLoading(false));
+  // Quick session modal
+  const [quickSessionOpen, setQuickSessionOpen] = useState(false);
+  const [quickMobile, setQuickMobile] = useState('');
+  const [quickLoading, setQuickLoading] = useState(false);
+
+  const loadDashboard = useCallback(async (showRefresh = false) => {
+    if (showRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const res = await fetch('/api/dashboard');
+      const d = await res.json();
+      setData(d);
+    } catch {
+      toast.error('Failed to load dashboard');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => { loadDashboard(); setOrigin(window.location.origin); }, [loadDashboard]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => loadDashboard(true), 30000);
+    return () => clearInterval(interval);
+  }, [loadDashboard]);
 
   // Quick patient search
   useEffect(() => {
@@ -70,6 +97,38 @@ export default function DashboardPage() {
     return () => clearTimeout(timeout);
   }, [search]);
 
+  // Quick session recording
+  const handleQuickSession = async () => {
+    if (!quickMobile.trim()) { toast.error('Enter mobile number'); return; }
+    setQuickLoading(true);
+    try {
+      const checkinRes = await fetch('/api/patients/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile: quickMobile.trim() }),
+      });
+      const checkinData = await checkinRes.json();
+      if (!checkinRes.ok) { toast.error(checkinData.error); return; }
+
+      const sessionRes = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient_id: checkinData.patient._id }),
+      });
+      const sessionData = await sessionRes.json();
+      if (!sessionRes.ok) { toast.error(sessionData.error); return; }
+
+      toast.success(`Session #${sessionData.sessions_completed} recorded for ${sessionData.patient_name}`);
+      setQuickSessionOpen(false);
+      setQuickMobile('');
+      loadDashboard(true);
+    } catch {
+      toast.error('Failed to record session');
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
   const stats = data
     ? [
         { label: 'Total Patients', value: data.total_patients, icon: Users, color: 'from-brand-500 to-brand-700', text: 'text-brand-600' },
@@ -82,9 +141,21 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-surface-900">Dashboard</h1>
-        <p className="text-surface-400 mt-1">Clinic overview at a glance</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-surface-900">Dashboard</h1>
+          <p className="text-surface-400 mt-1">Clinic overview at a glance</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => loadDashboard(true)}
+            icon={<RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />}>
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
+          <Button size="sm" onClick={() => setQuickSessionOpen(true)}
+            icon={<Zap className="w-4 h-4" />}>
+            <span className="hidden sm:inline">Quick Session</span>
+          </Button>
+        </div>
       </div>
 
       {/* Quick Patient Search */}
@@ -157,7 +228,7 @@ export default function DashboardPage() {
                       <p className="text-xs text-surface-400">{item.patient_mobile}</p>
                     </div>
                   </div>
-                  <span className="text-xs text-surface-400">{new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-xs text-surface-400 tabular-nums">{new Date(item.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               ))}
             </div>
@@ -189,6 +260,35 @@ export default function DashboardPage() {
             </Card>
           )}
 
+          {/* No Show - patients who haven't visited in 7+ days */}
+          {data && data.no_show.length > 0 && (
+            <Card className="animate-slide-up border-l-4 border-l-orange-400">
+              <div className="flex items-center gap-2 mb-3">
+                <UserX className="w-4 h-4 text-orange-500" />
+                <h3 className="font-semibold text-surface-800">No Show</h3>
+                <Badge className="bg-orange-50 text-orange-700">{data.no_show.length}</Badge>
+              </div>
+              <p className="text-xs text-surface-400 mb-3">Active patients who haven&apos;t visited in 7+ days</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {data.no_show.map((p) => (
+                  <div key={p._id} className="flex items-center justify-between py-2 px-3 bg-orange-50/50 rounded-xl">
+                    <Link href={`/admin/patients/${p._id}`} className="flex-1">
+                      <p className="text-sm font-medium text-surface-800">{p.name}</p>
+                      <p className="text-xs text-surface-400">{p.package_name}</p>
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-orange-100 text-orange-800">{p.days_since}d ago</Badge>
+                      <a href={`https://wa.me/${p.mobile.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg hover:bg-orange-100 transition-colors">
+                        <MessageCircle className="w-4 h-4 text-emerald-500" />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Expiring Soon */}
           {data && data.expiring_soon.length > 0 && (
             <Card className="animate-slide-up border-l-4 border-l-red-400">
@@ -206,7 +306,8 @@ export default function DashboardPage() {
                     </Link>
                     <div className="flex items-center gap-2">
                       <Badge className="bg-red-100 text-red-800">{p.days_left}d left</Badge>
-                      <a href={`https://wa.me/${p.mobile.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                      <a href={`https://wa.me/${p.mobile.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg hover:bg-red-100 transition-colors">
                         <MessageCircle className="w-4 h-4 text-emerald-500" />
                       </a>
                     </div>
@@ -241,13 +342,45 @@ export default function DashboardPage() {
               <p className="text-surface-400 text-xs mb-3">Print this for your clinic</p>
               <div className="inline-flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-xl px-4 py-2">
                 <code className="text-xs text-brand-600 font-mono">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/checkin` : '/checkin'}
+                  {origin ? `${origin}/checkin` : '/checkin'}
                 </code>
               </div>
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Quick Session Modal */}
+      <Modal open={quickSessionOpen} onClose={() => setQuickSessionOpen(false)} title="Quick Session Record">
+        <div className="space-y-4">
+          <div className="bg-brand-50 border border-brand-100 rounded-xl p-3">
+            <p className="text-xs text-brand-700">
+              Enter the patient&apos;s mobile number to instantly record a session. Same as the QR check-in flow but for the admin.
+            </p>
+          </div>
+          <div className="relative">
+            <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+            <Input
+              placeholder="Enter patient mobile number"
+              type="tel"
+              inputMode="numeric"
+              value={quickMobile}
+              onChange={(e) => setQuickMobile(e.target.value.replace(/\D/g, ''))}
+              className="!pl-10 !py-3.5 !text-lg"
+              onKeyDown={(e) => e.key === 'Enter' && handleQuickSession()}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => { setQuickSessionOpen(false); setQuickMobile(''); }} className="flex-1">
+              Cancel
+            </Button>
+            <Button onClick={handleQuickSession} loading={quickLoading} className="flex-1"
+              icon={<Zap className="w-4 h-4" />}>
+              Record Session
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

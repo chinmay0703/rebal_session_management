@@ -17,6 +17,7 @@ const categories = [
   { value: 'review', label: 'Review' },
   { value: 'followup', label: 'Follow-up' },
   { value: 'payment', label: 'Payment' },
+  { value: 'holiday', label: 'Holiday' },
   { value: 'general', label: 'General' },
 ];
 
@@ -25,6 +26,7 @@ const categoryColors: Record<string, string> = {
   review: 'bg-accent-sky/10 text-accent-sky',
   followup: 'bg-accent-violet/10 text-accent-violet',
   payment: 'bg-emerald-50 text-emerald-700',
+  holiday: 'bg-rose-50 text-rose-700',
   general: 'bg-surface-100 text-surface-600',
 };
 

@@ -39,29 +39,10 @@ export default function PatientsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [patientsRes, sessionsRes] = await Promise.all([
-        fetch('/api/patients').then((r) => r.json()),
-        fetch('/api/sessions').then((r) => r.json()),
-      ]);
-
-      const enriched = patientsRes.map((p: PatientWithData) => {
-        const patientSessions = sessionsRes.filter(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (s: any) => (s.patient_id?._id || s.patient_id) === p._id
-        );
-        const lastSession = patientSessions.length > 0
-          ? patientSessions.sort((a: { scan_time: string }, b: { scan_time: string }) =>
-              new Date(b.scan_time).getTime() - new Date(a.scan_time).getTime()
-            )[0]
-          : null;
-        return {
-          ...p,
-          sessions_completed: patientSessions.length,
-          last_session_date: lastSession?.scan_time || null,
-        };
-      });
-
-      setPatients(enriched);
+      const res = await fetch('/api/patients?stats=true');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setPatients(data);
     } catch {
       toast.error('Failed to load patients');
     } finally {

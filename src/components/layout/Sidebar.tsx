@@ -24,6 +24,13 @@ const navItems = [
   { href: '/admin/templates', label: 'Templates', icon: MessageSquareText },
 ];
 
+const bottomNavItems = [
+  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/sessions', label: 'Sessions', icon: ClipboardList },
+  { href: '/admin/add-patient', label: 'Add Patient', icon: UserPlus },
+  { href: '/admin/patients', label: 'Patients', icon: Users },
+];
+
 export default function Sidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -82,7 +89,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       {/* Mobile Bottom Nav */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-surface-100">
         <div className="flex items-center justify-around py-2">
-          {navItems.slice(0, 4).map((item) => {
+          {bottomNavItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
             return (

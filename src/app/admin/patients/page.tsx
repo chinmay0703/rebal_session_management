@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Card, Badge, ProgressBar, EmptyState, ConfirmDialog, Skeleton, SearchInput, Button } from '@/components/ui/components';
 import { Users, Eye, Trash2, UserPlus, Phone, MessageCircle, CheckCircle2, XCircle, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import WhatsappPicker from '@/components/WhatsappPicker';
 import WhatsappBroadcast from '@/components/WhatsappBroadcast';
 
@@ -39,12 +40,12 @@ export default function PatientsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/patients?stats=true');
+      const res = await fetchWithRetry('/api/patients?stats=true');
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setPatients(data);
     } catch {
-      toast.error('Failed to load patients');
+      toast.error('Failed to load patients. Pull down to refresh.');
     } finally {
       setLoading(false);
     }

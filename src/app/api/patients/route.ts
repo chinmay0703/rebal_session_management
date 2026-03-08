@@ -4,7 +4,12 @@ import Patient from '@/models/Patient';
 import Session from '@/models/Session';
 
 export async function GET(req: NextRequest) {
-  await connectDB();
+  try {
+    await connectDB();
+  } catch {
+    return NextResponse.json({ error: 'Database connection failed' }, { status: 503 });
+  }
+
   const { searchParams } = new URL(req.url);
   const withStats = searchParams.get('stats') === 'true';
 

@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card, Badge, EmptyState, Skeleton, Input, Select, Button } from '@/components/ui/components';
 import { ClipboardList, Download, FileSpreadsheet, Calendar, User, Table, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import * as XLSX from 'xlsx';
 
 interface SessionRecord {
@@ -60,7 +61,7 @@ function SpreadsheetModal({ open, onClose }: { open: boolean; onClose: () => voi
     setLoading(true);
     setPage(0);
     setSearch('');
-    fetch('/api/sessions/export')
+    fetchWithRetry('/api/sessions/export')
       .then(r => r.json())
       .then(setData)
       .catch(() => toast.error('Failed to load data'))
@@ -221,18 +222,22 @@ function SessionsContent() {
       if (patientFilter) params.set('patient_id', patientFilter);
       if (dateFilter) params.set('date', dateFilter);
 
-      const res = await fetch(`/api/sessions?${params}`);
+      const res = await fetchWithRetry(`/api/sessions?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setSessions(data);
     } catch {
-      toast.error('Failed to load sessions');
+      toast.error('Failed to load sessions. Pull down to refresh.');
     } finally {
       setLoading(false);
     }
   }, [patientFilter, dateFilter]);
 
   useEffect(() => {
-    fetch('/api/patients').then((r) => r.json()).then(setPatients);
+    fetchWithRetry('/api/patients')
+      .then((r) => r.json())
+      .then(setPatients)
+      .catch(() => {});
   }, []);
 
   useEffect(() => { load(); }, [load]);

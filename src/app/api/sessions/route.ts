@@ -4,10 +4,16 @@ import Session from '@/models/Session';
 import Patient from '@/models/Patient';
 
 export async function GET(req: NextRequest) {
-  await connectDB();
+  try {
+    await connectDB();
+  } catch {
+    return NextResponse.json({ error: 'Database connection failed' }, { status: 503 });
+  }
+
   const { searchParams } = new URL(req.url);
   const patientId = searchParams.get('patient_id');
   const date = searchParams.get('date');
+  const limit = parseInt(searchParams.get('limit') || '200');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const filter: any = {};
@@ -22,7 +28,9 @@ export async function GET(req: NextRequest) {
 
   const sessions = await Session.find(filter)
     .populate({ path: 'patient_id', populate: { path: 'package_id' } })
-    .sort({ scan_time: -1 });
+    .sort({ scan_time: -1 })
+    .limit(limit)
+    .lean();
 
   return NextResponse.json(sessions);
 }

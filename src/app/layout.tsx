@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'react-hot-toast';
 import PWAInstall from '@/components/PWAInstall';
+import SplashScreen from '@/components/SplashScreen';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,8 +17,9 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'ReBalance',
+    startupImage: '/icon-512-any.png',
   },
 };
 
@@ -36,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster position="top-right" toastOptions={{
           style: { borderRadius: '12px', background: '#1f2937', color: '#fff', fontSize: '14px' },
         }} />
+        <SplashScreen />
         {children}
         <PWAInstall />
       </body>

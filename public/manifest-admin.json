@@ -1,8 +1,8 @@
 {
-  "name": "ReBalance Checkin",
-  "short_name": "ReBalance",
-  "description": "ReBalance Physiotherapy - Patient Check-in",
-  "start_url": "/checkin",
+  "name": "ReBalance Admin",
+  "short_name": "RB Admin",
+  "description": "ReBalance Physiotherapy - Admin Panel",
+  "start_url": "/admin/dashboard",
   "display": "standalone",
   "background_color": "#f0f7ff",
   "theme_color": "#0274c3",

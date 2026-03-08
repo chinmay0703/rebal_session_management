@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { Download, X } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -8,10 +9,13 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function PWAInstall() {
+  const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
+
+  const isAdminPage = pathname?.startsWith('/admin');
 
   useEffect(() => {
     // Register service worker
@@ -50,6 +54,9 @@ export default function PWAInstall() {
   }, []);
 
   const handleInstall = async () => {
+    // Store which type of app is being installed
+    localStorage.setItem('pwa-type', isAdminPage ? 'admin' : 'checkin');
+
     if (isIOS) {
       setShowIOSGuide(true);
       return;
@@ -70,6 +77,9 @@ export default function PWAInstall() {
   };
 
   if (!showBanner) return null;
+
+  const appName = isAdminPage ? 'ReBalance Admin' : 'ReBalance Checkin';
+  const appDesc = isAdminPage ? 'Manage your clinic from home screen' : 'Quick access from your home screen';
 
   return (
     <>
@@ -131,8 +141,8 @@ export default function PWAInstall() {
                 <img src="/icon-192.png" alt="App" className="w-9 h-9 rounded-lg" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-surface-800 text-[14px]">Install ReBalance App</h3>
-                <p className="text-xs text-surface-400 mt-0.5">Quick access from your home screen</p>
+                <h3 className="font-semibold text-surface-800 text-[14px]">Install {appName}</h3>
+                <p className="text-xs text-surface-400 mt-0.5">{appDesc}</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button

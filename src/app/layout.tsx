@@ -2,12 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'react-hot-toast';
 import PWAInstall from '@/components/PWAInstall';
 import SplashScreen from '@/components/SplashScreen';
+import DynamicManifest from '@/components/DynamicManifest';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'ReBalance Physiotherapy',
   description: 'Clinic session management and patient tracking',
-  manifest: '/manifest.json',
+  // manifest is set dynamically by DynamicManifest component
   icons: {
     icon: [
       { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster position="top-right" toastOptions={{
           style: { borderRadius: '12px', background: '#1f2937', color: '#fff', fontSize: '14px' },
         }} />
+        <DynamicManifest />
         <SplashScreen />
         {children}
         <PWAInstall />

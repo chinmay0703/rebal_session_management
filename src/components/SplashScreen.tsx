@@ -1,15 +1,27 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function SplashScreen() {
-  const [visible, setVisible] = useState(true);
+  const pathname = usePathname();
+  const isCheckinPage = pathname === '/checkin' || pathname === '/';
+  const [visible, setVisible] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
+    if (!isCheckinPage) return;
+
+    // Only show splash on first visit (not on every navigation)
+    const hasShown = sessionStorage.getItem('splash-shown');
+    if (hasShown) return;
+
+    setVisible(true);
+    sessionStorage.setItem('splash-shown', '1');
+
     const timer1 = setTimeout(() => setFadeOut(true), 1800);
     const timer2 = setTimeout(() => setVisible(false), 2300);
     return () => { clearTimeout(timer1); clearTimeout(timer2); };
-  }, []);
+  }, [isCheckinPage]);
 
   if (!visible) return null;
 

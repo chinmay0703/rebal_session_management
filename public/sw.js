@@ -1,11 +1,13 @@
-const CACHE_NAME = 'rebalance-v1';
+const CACHE_NAME = 'rebalance-v2';
 const STATIC_ASSETS = [
   '/',
   '/checkin',
+  '/admin/dashboard',
   '/icon-192.png',
   '/icon-512.png',
   '/logo.jpg',
   '/manifest.json',
+  '/manifest-admin.json',
 ];
 
 self.addEventListener('install', (event) => {

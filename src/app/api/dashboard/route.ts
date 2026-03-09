@@ -5,7 +5,11 @@ import Package from '@/models/Package';
 import Session from '@/models/Session';
 
 export async function GET() {
-  await connectDB();
+  try {
+    await connectDB();
+  } catch {
+    return NextResponse.json({ error: 'Database connection failed' }, { status: 503 });
+  }
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);

@@ -214,18 +214,19 @@ function SessionsContent() {
   const [dateFilter, setDateFilter] = useState(() => new Date().toISOString().split('T')[0]);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (patientFilter) params.set('patient_id', patientFilter);
       if (dateFilter) params.set('date', dateFilter);
 
-      const res = await fetchWithRetry(`/api/sessions?${params}`);
+      const res = await fetchWithRetry(`/api/sessions?${params}`, { signal });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setSessions(data);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       toast.error('Failed to load sessions. Pull down to refresh.');
     } finally {
       setLoading(false);
@@ -233,13 +234,19 @@ function SessionsContent() {
   }, [patientFilter, dateFilter]);
 
   useEffect(() => {
-    fetchWithRetry('/api/patients')
+    const controller = new AbortController();
+    fetchWithRetry('/api/patients', { signal: controller.signal })
       .then((r) => r.json())
       .then(setPatients)
       .catch(() => {});
+    return () => controller.abort();
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   const exportCSV = async () => {
     try {

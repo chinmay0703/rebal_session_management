@@ -37,21 +37,26 @@ export default function PatientsPage() {
   const [whatsappTarget, setWhatsappTarget] = useState<PatientWithData | null>(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetchWithRetry('/api/patients?stats=true');
+      const res = await fetchWithRetry('/api/patients?stats=true', { signal });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setPatients(data);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       toast.error('Failed to load patients. Pull down to refresh.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;

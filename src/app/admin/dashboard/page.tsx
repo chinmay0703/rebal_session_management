@@ -8,6 +8,7 @@ import {
   UserX, RefreshCw, Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 interface FeedItem {
   _id: string;
@@ -59,14 +60,15 @@ export default function DashboardPage() {
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [quickResult, setQuickResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const loadDashboard = useCallback(async (showRefresh = false) => {
+  const loadDashboard = useCallback(async (showRefresh = false, signal?: AbortSignal) => {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const res = await fetch('/api/dashboard');
+      const res = await fetchWithRetry('/api/dashboard', { signal });
       const d = await res.json();
       setData(d);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       toast.error('Failed to load dashboard');
     } finally {
       setLoading(false);
@@ -74,7 +76,12 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => { loadDashboard(); setOrigin(window.location.origin); }, [loadDashboard]);
+  useEffect(() => {
+    const controller = new AbortController();
+    loadDashboard(false, controller.signal);
+    setOrigin(window.location.origin);
+    return () => controller.abort();
+  }, [loadDashboard]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {

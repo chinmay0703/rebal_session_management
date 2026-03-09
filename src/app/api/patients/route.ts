@@ -62,6 +62,11 @@ export async function POST(req: NextRequest) {
   await connectDB();
   const body = await req.json();
 
+  // Normalize mobile: strip non-digits and take last 10 digits
+  if (body.mobile) {
+    body.mobile = body.mobile.replace(/\D/g, '').slice(-10);
+  }
+
   const existing = await Patient.findOne({ mobile: body.mobile });
   if (existing) {
     return NextResponse.json({ error: 'A patient with this mobile number already exists' }, { status: 400 });

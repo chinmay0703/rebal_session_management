@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/mongodb';
 import Patient from '@/models/Patient';
 import Session from '@/models/Session';
@@ -38,7 +39,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
 
   if (body.mobile) {
-    const existing = await Patient.findOne({ mobile: body.mobile, _id: { $ne: id } });
+    body.mobile = body.mobile.replace(/\D/g, '').slice(-10);
+    const existing = await Patient.findOne({ mobile: body.mobile, _id: { $ne: new mongoose.Types.ObjectId(id) } });
     if (existing) {
       return NextResponse.json({ error: 'Another patient already has this mobile number' }, { status: 400 });
     }

@@ -271,7 +271,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Patient">
         <div className="space-y-4">
           <Input label="Patient Name" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-          <Input label="Mobile Number" required type="tel" value={editForm.mobile} onChange={(e) => setEditForm({ ...editForm, mobile: e.target.value })} />
+          <Input label="Mobile Number" required type="tel" inputMode="numeric" maxLength={10} value={editForm.mobile} onChange={(e) => setEditForm({ ...editForm, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })} />
           <Textarea label="Notes" value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
           <div className="flex gap-3 pt-2">
             <Button variant="secondary" onClick={() => setEditOpen(false)} className="flex-1">Cancel</Button>

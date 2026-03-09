@@ -8,7 +8,10 @@ export async function POST(req: NextRequest) {
   await connectDB();
   const { mobile } = await req.json();
 
-  const patient = await Patient.findOne({ mobile }).populate('package_id');
+  // Normalize mobile: strip non-digits and take last 10 digits
+  const normalizedMobile = (mobile || '').replace(/\D/g, '').slice(-10);
+
+  const patient = await Patient.findOne({ mobile: normalizedMobile }).populate('package_id');
   if (!patient) {
     return NextResponse.json({ error: 'No patient found with this mobile number' }, { status: 404 });
   }

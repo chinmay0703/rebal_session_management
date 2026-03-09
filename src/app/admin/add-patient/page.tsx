@@ -287,7 +287,7 @@ export default function AddPatientPage() {
                     value={form.mobile}
                     onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, '') })}
                     placeholder="Enter 10-digit mobile"
-                    maxLength={15}
+                    maxLength={10}
                     className="!pl-10"
                   />
                 </div>

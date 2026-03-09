@@ -27,8 +27,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
+  // Normalize mobile: strip non-digits and take last 10 digits
+  const normalizedMobile = mobile.replace(/\D/g, '').slice(-10);
+  if (normalizedMobile.length !== 10) {
+    return NextResponse.json({ error: 'Invalid mobile number' }, { status: 400 });
+  }
+
   // Check for duplicate mobile
-  const existing = await Patient.findOne({ mobile });
+  const existing = await Patient.findOne({ mobile: normalizedMobile });
   if (existing) {
     return NextResponse.json({ error: 'A patient with this mobile number already exists' }, { status: 400 });
   }
@@ -36,7 +42,7 @@ export async function POST(req: NextRequest) {
   // Create patient
   const patient = await Patient.create({
     name,
-    mobile,
+    mobile: normalizedMobile,
     package_id,
     start_date: start_date || new Date().toISOString().split('T')[0],
     notes: notes || `Imported with ${sessions_completed} existing sessions`,

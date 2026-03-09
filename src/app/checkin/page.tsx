@@ -1,8 +1,22 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { ProgressBar } from '@/components/ui/components';
-import { Phone, CheckCircle2, AlertCircle, ArrowLeft, Loader2, Zap } from 'lucide-react';
+import { Phone, CheckCircle2, AlertCircle, ArrowLeft, Loader2, Zap, Star, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const GOOGLE_REVIEW_URL = 'https://www.google.com/search?q=rebalance+physiotherapy+reviews';
+const COOKIE_MOBILE_KEY = 'rb_mobile';
+
+function getCookieMobile(): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_MOBILE_KEY}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function setCookieMobile(mobile: string) {
+  const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `${COOKIE_MOBILE_KEY}=${encodeURIComponent(mobile)}; expires=${expires}; path=/; SameSite=Lax`;
+}
 
 interface CheckinData {
   patient: { _id: string; name: string; mobile: string };
@@ -17,21 +31,42 @@ interface SessionResult {
   total_sessions: number;
 }
 
-type Step = 'input' | 'status' | 'success' | 'error';
+type Step = 'input' | 'status' | 'review' | 'success' | 'error';
 
 export default function CheckinPage() {
   const [mobile, setMobile] = useState('');
+  const [savedMobile, setSavedMobile] = useState('');
   const [step, setStep] = useState<Step>('input');
   const [loading, setLoading] = useState(false);
   const [checkinData, setCheckinData] = useState<CheckinData | null>(null);
   const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [countdown, setCountdown] = useState(5);
+  const [reviewOpened, setReviewOpened] = useState(false);
+  const [reviewCountdown, setReviewCountdown] = useState(0);
 
+  // Load saved mobile from cookie on mount
+  useEffect(() => {
+    const saved = getCookieMobile();
+    if (saved) {
+      setSavedMobile(saved);
+    }
+  }, []);
+
+  // Success countdown
   useEffect(() => {
     if (step !== 'success') return;
     setCountdown(5);
     const timer = setInterval(() => setCountdown(p => p > 0 ? p - 1 : 0), 1000);
+    return () => clearInterval(timer);
+  }, [step]);
+
+  // Review countdown - user must wait 5 seconds or open review to proceed
+  useEffect(() => {
+    if (step !== 'review') return;
+    setReviewCountdown(5);
+    setReviewOpened(false);
+    const timer = setInterval(() => setReviewCountdown(p => p > 0 ? p - 1 : 0), 1000);
     return () => clearInterval(timer);
   }, [step]);
 
@@ -53,6 +88,9 @@ export default function CheckinPage() {
         setStep('error');
         return;
       }
+      // Save mobile to cookie for next time
+      setCookieMobile(mobile.trim());
+      setSavedMobile(mobile.trim());
       setCheckinData(data);
       setStep('status');
     } catch {
@@ -64,6 +102,56 @@ export default function CheckinPage() {
   };
 
   const handleStartSession = async () => {
+    if (!checkinData) return;
+
+    // Show review popup if patient has <= 3 sessions remaining and hasn't reviewed yet this session
+    if (checkinData.sessions_pending <= 3 && step !== 'review') {
+      setStep('review');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient_id: checkinData.patient._id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error);
+        return;
+      }
+      setSessionResult(data);
+      setStep('success');
+
+      setTimeout(() => {
+        setMobile('');
+        setStep('input');
+        setCheckinData(null);
+        setSessionResult(null);
+      }, 5000);
+    } catch {
+      toast.error('Failed to start session');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenReview = () => {
+    window.open(GOOGLE_REVIEW_URL, '_blank');
+    setReviewOpened(true);
+    // After opening review, let them proceed immediately
+    toast.success('Thank you! You can now start your session.');
+  };
+
+  const handleSkipReview = () => {
+    // Can only skip after countdown
+    if (reviewCountdown > 0 && !reviewOpened) return;
+    handleStartSessionDirect();
+  };
+
+  const handleStartSessionDirect = async () => {
     if (!checkinData) return;
     setLoading(true);
     try {
@@ -101,6 +189,10 @@ export default function CheckinPage() {
     setErrorMsg('');
   };
 
+  const useSavedMobile = () => {
+    setMobile(savedMobile);
+  };
+
   const progressPct = checkinData
     ? Math.round((checkinData.sessions_completed / checkinData.package.total_sessions) * 100)
     : 0;
@@ -123,7 +215,7 @@ export default function CheckinPage() {
       {/* Main content area */}
       <div className="flex-1 flex flex-col items-center justify-center px-5 bg-surface-50 rounded-t-[20px] -mt-1 relative z-10">
 
-        {/* ──── INPUT STEP ──── */}
+        {/* ---- INPUT STEP ---- */}
         {step === 'input' && (
           <div className="w-full max-w-[360px] animate-slide-up -mt-4">
             {/* Icon */}
@@ -141,6 +233,23 @@ export default function CheckinPage() {
             {/* Card */}
             <div className="bg-white rounded-2xl p-5 shadow-[0_2px_20px_rgba(0,0,0,0.06)] border border-surface-100/80">
               <div className="space-y-3.5">
+                {/* Saved mobile suggestion */}
+                {savedMobile && !mobile && (
+                  <button
+                    onClick={useSavedMobile}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-50/60 border border-brand-100 cursor-pointer hover:bg-brand-50 transition-all active:scale-[0.98]"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
+                      <Phone className="w-4 h-4 text-brand-600" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-[13px] font-semibold text-brand-700">+91 {savedMobile}</p>
+                      <p className="text-[10px] text-brand-500">Tap to use saved number</p>
+                    </div>
+                    <div className="text-[10px] text-brand-400 font-medium bg-brand-100 px-2 py-1 rounded-md">Quick</div>
+                  </button>
+                )}
+
                 {/* Input field */}
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 select-none">
@@ -182,7 +291,7 @@ export default function CheckinPage() {
           </div>
         )}
 
-        {/* ──── STATUS STEP ──── */}
+        {/* ---- STATUS STEP ---- */}
         {step === 'status' && checkinData && (
           <div className="w-full max-w-[360px] animate-slide-up -mt-4">
             <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] border border-surface-100/80 overflow-hidden">
@@ -204,7 +313,6 @@ export default function CheckinPage() {
 
               {/* Progress ring + stats */}
               <div className="px-5 py-5">
-                {/* Circular-ish progress display */}
                 <div className="flex items-center justify-center gap-5 mb-5">
                   <div className="text-center">
                     <p className="text-[11px] text-surface-400 font-medium mb-1">Completed</p>
@@ -227,7 +335,6 @@ export default function CheckinPage() {
                   </div>
                 </div>
 
-                {/* Mini progress bar */}
                 <div className="flex items-center justify-between text-[11px] text-surface-400 mb-1.5 px-0.5">
                   <span>{checkinData.sessions_completed} of {checkinData.package.total_sessions} sessions</span>
                   <span className="font-semibold text-brand-600">{progressPct}%</span>
@@ -258,11 +365,91 @@ export default function CheckinPage() {
           </div>
         )}
 
-        {/* ──── SUCCESS STEP ──── */}
+        {/* ---- REVIEW STEP ---- */}
+        {step === 'review' && checkinData && (
+          <div className="w-full max-w-[360px] animate-slide-up -mt-4">
+            <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] border border-amber-100 p-6 relative overflow-hidden">
+              {/* Warm glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full bg-amber-400/10 blur-3xl -mt-20" />
+
+              <div className="relative text-center">
+                {/* Stars animation */}
+                <div className="flex items-center justify-center gap-1 mb-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Star
+                      key={i}
+                      className="w-8 h-8 text-amber-400 fill-amber-400 animate-count-up"
+                      style={{ animationDelay: `${i * 0.1}s` }}
+                    />
+                  ))}
+                </div>
+
+                <h2 className="text-[19px] font-bold text-surface-900 mb-1">
+                  You&apos;re Almost Done! {checkinData.sessions_pending <= 1 ? '🎉' : ''}
+                </h2>
+                <p className="text-surface-500 text-[13px] mb-2 leading-relaxed">
+                  Only <span className="font-bold text-amber-600">{checkinData.sessions_pending}</span> session{checkinData.sessions_pending !== 1 ? 's' : ''} left in your package!
+                </p>
+
+                <div className="bg-amber-50 rounded-xl p-4 mb-5 border border-amber-100">
+                  <p className="text-[13px] text-amber-800 leading-relaxed">
+                    <span className="font-semibold">Hi {checkinData.patient.name.split(' ')[0]}</span>, your journey with us matters!
+                    A quick review helps other patients find quality care. It only takes 30 seconds.
+                  </p>
+                </div>
+
+                {/* Review button - prominent */}
+                <button
+                  onClick={handleOpenReview}
+                  className="w-full py-[14px] rounded-xl text-white text-[15px] font-semibold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(245,158,11,0.3)] mb-3"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}
+                >
+                  <Star className="w-4.5 h-4.5 fill-white" />
+                  Leave a Review
+                  <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                </button>
+
+                {/* Continue button - subtle, with countdown */}
+                <button
+                  onClick={handleSkipReview}
+                  disabled={reviewCountdown > 0 && !reviewOpened}
+                  className={`w-full py-[13px] rounded-xl text-[14px] font-semibold active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    reviewOpened
+                      ? 'bg-emerald-500 text-white shadow-[0_4px_12px_rgba(5,150,105,0.25)]'
+                      : reviewCountdown > 0
+                        ? 'bg-surface-100 text-surface-300 cursor-not-allowed'
+                        : 'bg-surface-100 text-surface-600 hover:bg-surface-200'
+                  }`}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : reviewOpened ? (
+                    <Zap className="w-4 h-4" />
+                  ) : null}
+                  {loading
+                    ? 'Starting...'
+                    : reviewOpened
+                      ? 'Continue to Session'
+                      : reviewCountdown > 0
+                        ? `Please wait (${reviewCountdown}s)...`
+                        : 'Skip & Start Session'
+                  }
+                </button>
+
+                {reviewOpened && (
+                  <p className="text-[11px] text-emerald-600 font-medium mt-2 animate-fade-in">
+                    Thank you for your review!
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ---- SUCCESS STEP ---- */}
         {step === 'success' && sessionResult && (
           <div className="w-full max-w-[360px] animate-slide-up text-center -mt-4">
             <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] border border-emerald-100 p-6 relative overflow-hidden">
-              {/* Success green glow */}
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full bg-emerald-400/10 blur-3xl -mt-20" />
 
               <div className="relative">
@@ -288,7 +475,6 @@ export default function CheckinPage() {
                   <p className="text-[11px] text-surface-400 mt-2 font-medium">sessions completed</p>
                 </div>
 
-                {/* Countdown */}
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <div className="w-6 h-6 rounded-full bg-surface-100 flex items-center justify-center">
                     <span className="text-[12px] font-bold text-surface-500 tabular-nums">{countdown}</span>
@@ -303,7 +489,7 @@ export default function CheckinPage() {
           </div>
         )}
 
-        {/* ──── ERROR STEP ──── */}
+        {/* ---- ERROR STEP ---- */}
         {step === 'error' && (
           <div className="w-full max-w-[360px] animate-slide-up text-center -mt-4">
             <div className="bg-white rounded-2xl shadow-[0_2px_20px_rgba(0,0,0,0.06)] border border-red-100/80 p-6">

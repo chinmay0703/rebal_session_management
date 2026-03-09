@@ -1,39 +1,49 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
+import Patient from '@/models/Patient';
 import Session from '@/models/Session';
 
 export async function GET() {
   await connectDB();
 
-  const sessions = await Session.find()
-    .populate({ path: 'patient_id', populate: { path: 'package_id' } })
-    .sort({ scan_time: -1 });
+  const patients = await Patient.find().populate('package_id').sort({ name: 1 }).lean();
 
-  // Count completed sessions per patient
-  const patientSessionCounts: Record<string, number> = {};
-  for (const s of sessions) {
-    const pid = s.patient_id?._id?.toString();
-    if (pid) {
-      patientSessionCounts[pid] = (patientSessionCounts[pid] || 0) + 1;
-    }
-  }
+  const sessionStats = await Session.aggregate([
+    {
+      $group: {
+        _id: '$patient_id',
+        sessions_completed: { $sum: 1 },
+        last_session_date: { $max: '$scan_time' },
+      },
+    },
+  ]);
 
-  const data = sessions.map((s) => {
-    const totalSessions = s.patient_id?.package_id?.total_sessions || 0;
-    const pid = s.patient_id?._id?.toString();
-    const completed = pid ? (patientSessionCounts[pid] || 0) : 0;
-    const remaining = Math.max(0, totalSessions - completed);
+  const statsMap = new Map(
+    sessionStats.map((s: { _id: string; sessions_completed: number; last_session_date: Date }) => [
+      s._id.toString(),
+      { sessions_completed: s.sessions_completed, last_session_date: s.last_session_date },
+    ])
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = patients.map((p: any) => {
+    const stats = statsMap.get(p._id.toString());
+    const totalSessions = p.package_id?.total_sessions || 0;
+    const completed = stats?.sessions_completed || 0;
+    const pending = Math.max(0, totalSessions - completed);
+    const lastDate = stats?.last_session_date
+      ? new Date(stats.last_session_date).toLocaleDateString()
+      : 'N/A';
 
     return {
-      patient_name: s.patient_id?.name || 'Unknown',
-      mobile: s.patient_id?.mobile || 'N/A',
-      package: s.patient_id?.package_id?.name || 'N/A',
-      session_number: s.session_number,
+      patient_name: p.name,
+      mobile: p.mobile,
+      package: p.package_id?.name || 'N/A',
       total_sessions: totalSessions,
       sessions_completed: completed,
-      sessions_remaining: remaining,
-      date: new Date(s.scan_time).toLocaleDateString(),
-      time: new Date(s.scan_time).toLocaleTimeString(),
+      sessions_pending: pending,
+      last_session_date: lastDate,
+      status: p.status,
     };
   });
 

@@ -40,10 +40,18 @@ export async function GET(req: NextRequest) {
   const enriched = patients.map((p) => {
     const pObj = p.toObject();
     const stats = statsMap.get(p._id.toString());
+    const sessionsCompleted = stats?.sessions_completed || 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const totalSessions = (p.package_id as any)?.total_sessions || 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const packageName = (p.package_id as any)?.name || '';
     return {
       ...pObj,
-      sessions_completed: stats?.sessions_completed || 0,
+      sessions_completed: sessionsCompleted,
       last_session_date: stats?.last_session_date || null,
+      total_sessions: totalSessions,
+      pending_sessions: Math.max(0, totalSessions - sessionsCompleted),
+      package_name: packageName,
     };
   });
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rebalance-v2';
+const CACHE_NAME = 'rebalance-v3';
 const STATIC_ASSETS = [
   '/',
   '/checkin',
@@ -52,6 +52,41 @@ self.addEventListener('fetch', (event) => {
         return res;
       });
       return cached || fetchPromise;
+    })
+  );
+});
+
+// Push notification handling
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  const data = event.data.json();
+  const options = {
+    body: data.body || '',
+    icon: data.icon || '/logo.jpg',
+    badge: '/icon-192.png',
+    vibrate: [200, 100, 200],
+    data: { url: data.url || '/admin/dashboard' },
+    actions: [{ action: 'open', title: 'Open' }],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'ReBalance', options)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/admin/dashboard';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.includes('/admin') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
     })
   );
 });

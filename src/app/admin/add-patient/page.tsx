@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Card, Input, CustomSelect, Textarea } from '@/components/ui/components';
-import { UserPlus, User, Phone, Package, Calendar, FileText, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { UserPlus, User, Phone, Package, Calendar, FileText, ArrowLeft, CheckCircle2, Upload, Hash, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Pkg {
@@ -16,6 +16,8 @@ export default function AddPatientPage() {
   const router = useRouter();
   const [packages, setPackages] = useState<Pkg[]>([]);
   const [saving, setSaving] = useState(false);
+  const [isImport, setIsImport] = useState(false);
+  const [fillMode, setFillMode] = useState<'auto' | 'manual'>('auto');
   const [form, setForm] = useState({
     name: '',
     mobile: '',
@@ -23,6 +25,8 @@ export default function AddPatientPage() {
     start_date: new Date().toISOString().split('T')[0],
     notes: '',
   });
+  const [sessionsCompleted, setSessionsCompleted] = useState('');
+  const [sessionDates, setSessionDates] = useState<string[]>([]);
 
   useEffect(() => {
     fetch('/api/packages')
@@ -31,6 +35,23 @@ export default function AddPatientPage() {
   }, []);
 
   const selectedPkg = packages.find(p => p._id === form.package_id);
+
+  // When sessions completed changes in manual mode, adjust the dates array
+  useEffect(() => {
+    const count = parseInt(sessionsCompleted) || 0;
+    setSessionDates(prev => {
+      if (count > prev.length) {
+        const newDates = [...prev];
+        for (let i = prev.length; i < count; i++) {
+          const date = new Date();
+          date.setDate(date.getDate() - (count - i));
+          newDates.push(date.toISOString().split('T')[0]);
+        }
+        return newDates;
+      }
+      return prev.slice(0, count);
+    });
+  }, [sessionsCompleted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,19 +63,53 @@ export default function AddPatientPage() {
       toast.error('Please enter a valid mobile number');
       return;
     }
-    setSaving(true);
-    try {
-      const res = await fetch('/api/patients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || 'Failed to add patient');
+
+    if (isImport) {
+      const count = parseInt(sessionsCompleted);
+      if (!count || count < 1) {
+        toast.error('Please enter sessions completed');
         return;
       }
-      toast.success('Patient added successfully');
+      if (selectedPkg && count > selectedPkg.total_sessions) {
+        toast.error(`Sessions completed cannot exceed total sessions (${selectedPkg.total_sessions})`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      if (isImport) {
+        // Use import API
+        const res = await fetch('/api/patients/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...form,
+            sessions_completed: parseInt(sessionsCompleted),
+            auto_fill: fillMode === 'auto',
+            session_dates: fillMode === 'manual' ? sessionDates : undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to import patient');
+          return;
+        }
+        toast.success(`Patient imported with ${data.sessions_created} sessions`);
+      } else {
+        // Regular add
+        const res = await fetch('/api/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to add patient');
+          return;
+        }
+        toast.success('Patient added successfully');
+      }
       router.push('/admin/patients');
     } catch {
       toast.error('Failed to add patient');
@@ -72,9 +127,41 @@ export default function AddPatientPage() {
           <ArrowLeft className="w-5 h-5 text-surface-500" />
         </button>
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-surface-900">New Patient</h1>
-          <p className="text-xs sm:text-sm text-surface-400">Register a new patient</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-surface-900">
+            {isImport ? 'Import Existing Patient' : 'New Patient'}
+          </h1>
+          <p className="text-xs sm:text-sm text-surface-400">
+            {isImport ? 'Add patient with existing session history' : 'Register a new patient'}
+          </p>
         </div>
+      </div>
+
+      {/* Toggle: New / Import Existing */}
+      <div className="flex gap-2 mb-5">
+        <button
+          type="button"
+          onClick={() => setIsImport(false)}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            !isImport
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'bg-white text-surface-500 border border-surface-200 hover:bg-surface-50'
+          }`}
+        >
+          <UserPlus className="w-4 h-4" />
+          New Patient
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsImport(true)}
+          className={`flex-1 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            isImport
+              ? 'bg-brand-600 text-white shadow-sm'
+              : 'bg-white text-surface-500 border border-surface-200 hover:bg-surface-50'
+          }`}
+        >
+          <Upload className="w-4 h-4" />
+          Import Existing
+        </button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -86,11 +173,17 @@ export default function AddPatientPage() {
               {/* Avatar Preview */}
               <Card className="animate-slide-up stagger-1">
                 <div className="flex flex-row lg:flex-col items-center lg:items-center gap-4 lg:gap-3 lg:text-center">
-                  <div className="w-14 h-14 lg:w-20 lg:h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-200">
+                  <div className={`w-14 h-14 lg:w-20 lg:h-20 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg ${
+                    isImport
+                      ? 'bg-gradient-to-br from-amber-500 to-amber-700 shadow-amber-200'
+                      : 'bg-gradient-to-br from-brand-500 to-brand-700 shadow-brand-200'
+                  }`}>
                     {form.name ? (
                       <span className="text-white font-bold text-xl lg:text-3xl">
                         {form.name.charAt(0).toUpperCase()}
                       </span>
+                    ) : isImport ? (
+                      <Upload className="w-6 h-6 lg:w-8 lg:h-8 text-white/80" />
                     ) : (
                       <UserPlus className="w-6 h-6 lg:w-8 lg:h-8 text-white/80" />
                     )}
@@ -102,11 +195,16 @@ export default function AddPatientPage() {
                     <p className="text-xs text-surface-400">
                       {form.mobile ? `+91 ${form.mobile}` : 'Mobile number'}
                     </p>
+                    {isImport && sessionsCompleted && (
+                      <p className="text-xs text-amber-600 font-medium mt-0.5">
+                        {sessionsCompleted} sessions pre-filled
+                      </p>
+                    )}
                   </div>
                 </div>
               </Card>
 
-              {/* Package Info - shows when selected */}
+              {/* Package Info */}
               {selectedPkg && (
                 <Card className="animate-fade-in !p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -123,6 +221,16 @@ export default function AddPatientPage() {
                       </div>
                     )}
                   </div>
+                  {isImport && sessionsCompleted && (
+                    <div className="mt-2 pt-2 border-t border-brand-100">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-brand-600">Remaining after import</span>
+                        <span className="font-semibold text-brand-800">
+                          {Math.max(0, selectedPkg.total_sessions - (parseInt(sessionsCompleted) || 0))} sessions
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </Card>
               )}
 
@@ -130,8 +238,8 @@ export default function AddPatientPage() {
               <div className="hidden lg:flex flex-col gap-2 pt-1">
                 <Button type="submit" loading={saving}
                   className="w-full !py-3.5 text-base"
-                  icon={<UserPlus className="w-5 h-5" />}>
-                  Add Patient
+                  icon={isImport ? <Upload className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}>
+                  {isImport ? 'Import Patient' : 'Add Patient'}
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => router.push('/admin/patients')}
                   className="w-full !py-3.5 text-base">
@@ -221,6 +329,100 @@ export default function AddPatientPage() {
               )}
             </Card>
 
+            {/* Import Section - only shown in import mode */}
+            {isImport && (
+              <Card className="animate-slide-up stagger-2 !border-amber-100 !bg-amber-50/30">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <Hash className="w-4 h-4 text-amber-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-surface-800 text-sm">Existing Sessions</h3>
+                    <p className="text-[11px] text-surface-400">Sessions already completed by this patient</p>
+                  </div>
+                </div>
+
+                {/* Sessions completed input */}
+                <div className="relative mb-4">
+                  <Input
+                    label="Sessions Completed"
+                    required
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={selectedPkg?.total_sessions || 100}
+                    value={sessionsCompleted}
+                    onChange={(e) => setSessionsCompleted(e.target.value)}
+                    placeholder={`Enter number (max ${selectedPkg?.total_sessions || '?'})`}
+                  />
+                </div>
+
+                {/* Fill mode toggle */}
+                {sessionsCompleted && parseInt(sessionsCompleted) > 0 && (
+                  <div className="space-y-3 animate-fade-in">
+                    <p className="text-xs font-medium text-surface-600">Session date filling mode:</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFillMode('auto')}
+                        className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          fillMode === 'auto'
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'bg-white text-surface-500 border border-surface-200 hover:bg-surface-50'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        Auto Fill
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFillMode('manual')}
+                        className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          fillMode === 'manual'
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'bg-white text-surface-500 border border-surface-200 hover:bg-surface-50'
+                        }`}
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                        Manual Dates
+                      </button>
+                    </div>
+
+                    {fillMode === 'auto' && (
+                      <div className="bg-white rounded-xl p-3 border border-amber-100 text-xs text-amber-700">
+                        <p className="font-medium mb-1">Auto mode:</p>
+                        <p className="text-amber-600">
+                          {parseInt(sessionsCompleted)} sessions will be added with dates going backward from yesterday, one session per day.
+                        </p>
+                      </div>
+                    )}
+
+                    {fillMode === 'manual' && (
+                      <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                        {sessionDates.map((date, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-surface-500 w-14 flex-shrink-0">
+                              Day {i + 1}
+                            </span>
+                            <input
+                              type="date"
+                              value={date}
+                              onChange={(e) => {
+                                const newDates = [...sessionDates];
+                                newDates[i] = e.target.value;
+                                setSessionDates(newDates);
+                              }}
+                              className="flex-1 px-3 py-2 rounded-lg border border-surface-200 bg-white text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            )}
+
             {/* Date & Notes */}
             <Card className="animate-slide-up stagger-3">
               <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
@@ -229,7 +431,7 @@ export default function AddPatientPage() {
                     <Calendar className="w-4 h-4" />
                   </div>
                   <Input
-                    label="Start Date"
+                    label={isImport ? 'Package Start Date' : 'Start Date'}
                     required
                     type="date"
                     value={form.start_date}
@@ -261,8 +463,8 @@ export default function AddPatientPage() {
               </Button>
               <Button type="submit" loading={saving}
                 className="flex-1 !py-3.5 text-base"
-                icon={<UserPlus className="w-5 h-5" />}>
-                Add Patient
+                icon={isImport ? <Upload className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}>
+                {isImport ? 'Import' : 'Add Patient'}
               </Button>
             </div>
           </div>

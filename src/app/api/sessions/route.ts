@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import Session from '@/models/Session';
 import Patient from '@/models/Patient';
+import Notification from '@/models/Notification';
+import { sendPushToAll } from '@/lib/pushNotify';
 
 export async function GET(req: NextRequest) {
   try {
@@ -72,10 +74,47 @@ export async function POST(req: NextRequest) {
     scan_time: new Date(),
   });
 
+  const newCompleted = completedSessions + 1;
+  const remaining = totalSessions - newCompleted;
+
+  // Create session started notification
+  await Notification.create({
+    type: 'session_started',
+    patient_name: patient.name,
+    patient_mobile: patient.mobile,
+    message: `${patient.name} started session ${newCompleted}/${totalSessions}`,
+  });
+
+  // Alert if patient has 3 or fewer sessions remaining
+  if (remaining > 0 && remaining <= 3) {
+    await Notification.create({
+      type: 'last_3_sessions',
+      patient_name: patient.name,
+      patient_mobile: patient.mobile,
+      message: `${patient.name} has only ${remaining} session${remaining === 1 ? '' : 's'} remaining`,
+    });
+  }
+
+  // Alert if package is now completed
+  if (remaining === 0) {
+    await Notification.create({
+      type: 'package_completed',
+      patient_name: patient.name,
+      patient_mobile: patient.mobile,
+      message: `${patient.name} has completed all ${totalSessions} sessions!`,
+    });
+  }
+
+  // Send push notifications (non-blocking)
+  const pushMessage = remaining > 0 && remaining <= 3
+    ? `${patient.name} - Session ${newCompleted}/${totalSessions} (${remaining} left!)`
+    : `${patient.name} started session ${newCompleted}/${totalSessions}`;
+  sendPushToAll('Session Started', pushMessage, '/admin/dashboard').catch(() => {});
+
   return NextResponse.json({
     session,
     patient_name: patient.name,
-    sessions_completed: completedSessions + 1,
+    sessions_completed: newCompleted,
     total_sessions: totalSessions,
   }, { status: 201 });
 }

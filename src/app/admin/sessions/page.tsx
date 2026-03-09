@@ -29,24 +29,22 @@ interface ExportRow {
   patient_name: string;
   mobile: string;
   package: string;
-  session_number: number;
   total_sessions: number;
   sessions_completed: number;
-  sessions_remaining: number;
-  date: string;
-  time: string;
+  sessions_pending: number;
+  last_session_date: string;
+  status: string;
 }
 
 const COLUMNS = [
   { key: 'patient_name', label: 'Patient', short: 'Patient' },
   { key: 'mobile', label: 'Mobile', short: 'Mobile' },
   { key: 'package', label: 'Package', short: 'Pkg' },
-  { key: 'session_number', label: 'Session #', short: '#' },
   { key: 'total_sessions', label: 'Total', short: 'Total' },
-  { key: 'sessions_completed', label: 'Done', short: 'Done' },
-  { key: 'sessions_remaining', label: 'Left', short: 'Left' },
-  { key: 'date', label: 'Date', short: 'Date' },
-  { key: 'time', label: 'Time', short: 'Time' },
+  { key: 'sessions_completed', label: 'Completed', short: 'Done' },
+  { key: 'sessions_pending', label: 'Pending', short: 'Pend' },
+  { key: 'last_session_date', label: 'Last Session', short: 'Last' },
+  { key: 'status', label: 'Status', short: 'Status' },
 ] as const;
 
 function SpreadsheetModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -154,16 +152,17 @@ function SpreadsheetModal({ open, onClose }: { open: boolean; onClose: () => voi
                       <td className="px-3 py-3">
                         <span className="inline-block px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-medium">{row.package}</span>
                       </td>
-                      <td className="px-3 py-3 text-sm text-surface-800 font-semibold tabular-nums text-center">{row.session_number}</td>
                       <td className="px-3 py-3 text-sm text-surface-500 tabular-nums text-center">{row.total_sessions}</td>
                       <td className="px-3 py-3 text-center">
                         <span className="inline-block px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold tabular-nums">{row.sessions_completed}</span>
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${row.sessions_remaining > 0 ? 'bg-amber-50 text-amber-700' : 'bg-surface-100 text-surface-500'}`}>{row.sessions_remaining}</span>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-xs font-semibold tabular-nums ${row.sessions_pending > 0 ? 'bg-amber-50 text-amber-700' : 'bg-surface-100 text-surface-500'}`}>{row.sessions_pending}</span>
                       </td>
-                      <td className="px-3 py-3 text-sm text-surface-600 tabular-nums whitespace-nowrap">{row.date}</td>
-                      <td className="px-3 py-3 text-sm text-surface-400 tabular-nums whitespace-nowrap">{row.time}</td>
+                      <td className="px-3 py-3 text-sm text-surface-600 tabular-nums whitespace-nowrap">{row.last_session_date}</td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-medium capitalize ${row.status === 'active' ? 'bg-emerald-50 text-emerald-700' : row.status === 'completed' ? 'bg-brand-50 text-brand-700' : 'bg-red-50 text-red-600'}`}>{row.status}</span>
+                      </td>
                     </tr>
                   );
                 })}
@@ -212,7 +211,7 @@ function SessionsContent() {
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [patientFilter, setPatientFilter] = useState(initialPatient);
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState(() => new Date().toISOString().split('T')[0]);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -247,16 +246,16 @@ function SessionsContent() {
       const res = await fetch('/api/sessions/export');
       const data = await res.json();
       const csv = [
-        ['Patient Name', 'Mobile', 'Package', 'Session Number', 'Total Sessions', 'Sessions Completed', 'Sessions Remaining', 'Date', 'Time'],
+        ['Patient Name', 'Mobile', 'Package', 'Total Sessions', 'Completed', 'Pending', 'Last Session', 'Status'],
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...data.map((r: any) => [r.patient_name, r.mobile, r.package, r.session_number, r.total_sessions, r.sessions_completed, r.sessions_remaining, r.date, r.time]),
+        ...data.map((r: any) => [r.patient_name, r.mobile, r.package, r.total_sessions, r.sessions_completed, r.sessions_pending, r.last_session_date, r.status]),
       ].map((row) => row.join(',')).join('\n');
 
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'sessions_export.csv';
+      a.download = 'patients_export.csv';
       a.click();
       URL.revokeObjectURL(url);
       toast.success('CSV exported');
@@ -269,20 +268,19 @@ function SessionsContent() {
     try {
       const res = await fetch('/api/sessions/export');
       const data = await res.json();
-      const ws = XLSX.utils.json_to_sheet(data.map((r: { patient_name: string; mobile: string; package: string; session_number: number; total_sessions: number; sessions_completed: number; sessions_remaining: number; date: string; time: string }) => ({
+      const ws = XLSX.utils.json_to_sheet(data.map((r: { patient_name: string; mobile: string; package: string; total_sessions: number; sessions_completed: number; sessions_pending: number; last_session_date: string; status: string }) => ({
         'Patient Name': r.patient_name,
         'Mobile': r.mobile,
         'Package': r.package,
-        'Session Number': r.session_number,
         'Total Sessions': r.total_sessions,
-        'Sessions Completed': r.sessions_completed,
-        'Sessions Remaining': r.sessions_remaining,
-        'Date': r.date,
-        'Time': r.time,
+        'Completed': r.sessions_completed,
+        'Pending': r.sessions_pending,
+        'Last Session': r.last_session_date,
+        'Status': r.status,
       })));
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Sessions');
-      XLSX.writeFile(wb, 'sessions_export.xlsx');
+      XLSX.utils.book_append_sheet(wb, ws, 'Patients');
+      XLSX.writeFile(wb, 'patients_export.xlsx');
       toast.success('Excel exported');
     } catch {
       toast.error('Export failed');
@@ -324,7 +322,12 @@ function SessionsContent() {
           </div>
           {(patientFilter || dateFilter) && (
             <Button variant="ghost" size="sm" onClick={() => { setPatientFilter(''); setDateFilter(''); }}>
-              Clear
+              Clear All
+            </Button>
+          )}
+          {!dateFilter && (
+            <Button variant="ghost" size="sm" onClick={() => setDateFilter(new Date().toISOString().split('T')[0])}>
+              Today
             </Button>
           )}
         </div>

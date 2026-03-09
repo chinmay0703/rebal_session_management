@@ -1,10 +1,10 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Card, Badge, Skeleton, SearchInput, Button, Modal, Input } from '@/components/ui/components';
+import { Card, Badge, Skeleton, SearchInput, Button, Modal } from '@/components/ui/components';
 import {
   Users, Package, CalendarCheck, Clock, ScanLine,
-  AlertTriangle, Timer, CheckCircle2, XCircle, MessageCircle, Phone,
+  AlertTriangle, Timer, CheckCircle2, XCircle, MessageCircle,
   UserX, RefreshCw, Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -51,10 +51,13 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [origin, setOrigin] = useState('');
 
-  // Quick session modal
+  // Quick session
   const [quickSessionOpen, setQuickSessionOpen] = useState(false);
-  const [quickMobile, setQuickMobile] = useState('');
   const [quickLoading, setQuickLoading] = useState(false);
+  const [activePatients, setActivePatients] = useState<Array<{ _id: string; name: string; mobile: string; pending_sessions: number; completed_sessions: number; total_sessions: number; package_name: string }>>([]);
+  const [activePatientsLoading, setActivePatientsLoading] = useState(false);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [quickResult, setQuickResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const loadDashboard = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -97,33 +100,53 @@ export default function DashboardPage() {
     return () => clearTimeout(timeout);
   }, [search]);
 
+  // Load active patients for quick session
+  const loadActivePatients = async () => {
+    setActivePatientsLoading(true);
+    try {
+      const res = await fetch('/api/patients?stats=true');
+      if (res.ok) {
+        const all = await res.json();
+        const active = all
+          .filter((p: { status: string; pending_sessions: number }) => p.status === 'active' && p.pending_sessions > 0)
+          .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
+        setActivePatients(active);
+      }
+    } catch { /* ignore */ }
+    setActivePatientsLoading(false);
+  };
+
+  const openQuickSession = () => {
+    setQuickSessionOpen(true);
+    setSelectedPatientId('');
+    setQuickResult(null);
+    loadActivePatients();
+  };
+
   // Quick session recording
   const handleQuickSession = async () => {
-    if (!quickMobile.trim()) { toast.error('Enter mobile number'); return; }
+    if (!selectedPatientId) { toast.error('Select a patient'); return; }
     setQuickLoading(true);
+    setQuickResult(null);
     try {
-      const checkinRes = await fetch('/api/patients/checkin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: quickMobile.trim() }),
-      });
-      const checkinData = await checkinRes.json();
-      if (!checkinRes.ok) { toast.error(checkinData.error); return; }
-
       const sessionRes = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patient_id: checkinData.patient._id }),
+        body: JSON.stringify({ patient_id: selectedPatientId }),
       });
       const sessionData = await sessionRes.json();
-      if (!sessionRes.ok) { toast.error(sessionData.error); return; }
+      if (!sessionRes.ok) {
+        setQuickResult({ type: 'error', message: sessionData.error });
+        return;
+      }
 
+      setQuickResult({ type: 'success', message: `Session #${sessionData.sessions_completed} recorded for ${sessionData.patient_name}` });
       toast.success(`Session #${sessionData.sessions_completed} recorded for ${sessionData.patient_name}`);
-      setQuickSessionOpen(false);
-      setQuickMobile('');
+      setSelectedPatientId('');
+      loadActivePatients();
       loadDashboard(true);
     } catch {
-      toast.error('Failed to record session');
+      setQuickResult({ type: 'error', message: 'Failed to record session' });
     } finally {
       setQuickLoading(false);
     }
@@ -151,7 +174,7 @@ export default function DashboardPage() {
             icon={<RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />}>
             <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button size="sm" onClick={() => setQuickSessionOpen(true)}
+          <Button size="sm" onClick={openQuickSession}
             icon={<Zap className="w-4 h-4" />}>
             <span className="hidden sm:inline">Quick Session</span>
           </Button>
@@ -351,32 +374,74 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Session Modal */}
-      <Modal open={quickSessionOpen} onClose={() => setQuickSessionOpen(false)} title="Quick Session Record">
+      <Modal open={quickSessionOpen} onClose={() => setQuickSessionOpen(false)} title="Quick Session">
         <div className="space-y-4">
           <div className="bg-brand-50 border border-brand-100 rounded-xl p-3">
             <p className="text-xs text-brand-700">
-              Enter the patient&apos;s mobile number to instantly record a session. Same as the QR check-in flow but for the admin.
+              Select an active patient from the dropdown and start their session instantly.
             </p>
           </div>
-          <div className="relative">
-            <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-            <Input
-              placeholder="Enter patient mobile number"
-              type="tel"
-              inputMode="numeric"
-              value={quickMobile}
-              onChange={(e) => setQuickMobile(e.target.value.replace(/\D/g, ''))}
-              className="!pl-10 !py-3.5 !text-lg"
-              onKeyDown={(e) => e.key === 'Enter' && handleQuickSession()}
-            />
-          </div>
+
+          {activePatientsLoading ? (
+            <div className="py-6 text-center text-surface-400 text-sm">Loading patients...</div>
+          ) : activePatients.length === 0 ? (
+            <div className="py-6 text-center text-surface-400 text-sm">No active patients with pending sessions</div>
+          ) : (
+            <>
+              <select
+                value={selectedPatientId}
+                onChange={(e) => { setSelectedPatientId(e.target.value); setQuickResult(null); }}
+                className="w-full px-4 py-3 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all appearance-none cursor-pointer"
+              >
+                <option value="">Select a patient...</option>
+                {activePatients.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} — {p.pending_sessions} pending ({p.completed_sessions}/{p.total_sessions})
+                  </option>
+                ))}
+              </select>
+
+              {selectedPatientId && (() => {
+                const p = activePatients.find(x => x._id === selectedPatientId);
+                if (!p) return null;
+                return (
+                  <div className="bg-surface-50 rounded-xl p-3 border border-surface-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-surface-800">{p.name}</p>
+                        <p className="text-xs text-surface-400">{p.mobile} &middot; {p.package_name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-brand-600">{p.pending_sessions}</p>
+                        <p className="text-[10px] text-surface-400">pending</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-surface-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: `${(p.completed_sessions / p.total_sessions) * 100}%` }} />
+                    </div>
+                    <p className="text-[10px] text-surface-400 mt-1">{p.completed_sessions} of {p.total_sessions} sessions completed</p>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+
+          {quickResult && (
+            <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+              quickResult.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+            }`}>
+              {quickResult.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
+              {quickResult.message}
+            </div>
+          )}
+
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => { setQuickSessionOpen(false); setQuickMobile(''); }} className="flex-1">
+            <Button variant="secondary" onClick={() => setQuickSessionOpen(false)} className="flex-1">
               Cancel
             </Button>
-            <Button onClick={handleQuickSession} loading={quickLoading} className="flex-1"
+            <Button onClick={handleQuickSession} loading={quickLoading} disabled={!selectedPatientId} className="flex-1"
               icon={<Zap className="w-4 h-4" />}>
-              Record Session
+              Start Session
             </Button>
           </div>
         </div>

@@ -36,7 +36,7 @@ export default function AddPatientPage() {
 
   const selectedPkg = packages.find(p => p._id === form.package_id);
 
-  // When sessions completed changes in manual mode, adjust the dates array
+  // When sessions completed changes, adjust dates array and auto-calculate start date
   useEffect(() => {
     const count = parseInt(sessionsCompleted) || 0;
     setSessionDates(prev => {
@@ -51,7 +51,14 @@ export default function AddPatientPage() {
       }
       return prev.slice(0, count);
     });
-  }, [sessionsCompleted]);
+
+    // Auto-calculate start date: today minus sessions completed
+    if (isImport && count > 0) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - count);
+      setForm(prev => ({ ...prev, start_date: startDate.toISOString().split('T')[0] }));
+    }
+  }, [sessionsCompleted, isImport]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

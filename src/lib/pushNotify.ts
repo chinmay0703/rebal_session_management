@@ -2,8 +2,8 @@ import webpush from 'web-push';
 import { connectDB } from './mongodb';
 import PushSubscription from '@/models/PushSubscription';
 
-const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BKB-vTi_Jp1pna3ttcFBTetuhf-GVHX59TTepMtjZXg9S1I9PLdq4qyoPb4g7-MRVCE7XusZAET8Ou67OeRHKg0';
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'm1wVO2hI-KCLZyr6MtyZ4iWgcEcIZMsIyJ2FLzXN2AE';
+const VAPID_PUBLIC = 'BKB-vTi_Jp1pna3ttcFBTetuhf-GVHX59TTepMtjZXg9S1I9PLdq4qyoPb4g7-MRVCE7XusZAET8Ou67OeRHKg0';
+const VAPID_PRIVATE = 'm1wVO2hI-KCLZyr6MtyZ4iWgcEcIZMsIyJ2FLzXN2AE';
 
 webpush.setVapidDetails(
   'mailto:admin@rebalance.com',

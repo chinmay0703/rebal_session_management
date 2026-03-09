@@ -91,7 +91,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         }
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BKB-vTi_Jp1pna3ttcFBTetuhf-GVHX59TTepMtjZXg9S1I9PLdq4qyoPb4g7-MRVCE7XusZAET8Ou67OeRHKg0',
+          applicationServerKey: 'BKB-vTi_Jp1pna3ttcFBTetuhf-GVHX59TTepMtjZXg9S1I9PLdq4qyoPb4g7-MRVCE7XusZAET8Ou67OeRHKg0',
         });
         await fetch('/api/push', {
           method: 'POST',

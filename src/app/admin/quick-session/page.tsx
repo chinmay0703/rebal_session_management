@@ -10,7 +10,7 @@ interface PatientItem {
   status: string;
   package_name: string;
   total_sessions: number;
-  completed_sessions: number;
+  sessions_completed: number;
   pending_sessions: number;
 }
 
@@ -124,7 +124,7 @@ export default function QuickSessionPage() {
                         {patient.package_name}
                       </span>
                       <span className="text-xs text-surface-500">
-                        {patient.completed_sessions}/{patient.total_sessions} done
+                        {patient.sessions_completed}/{patient.total_sessions} done
                       </span>
                       <span className="text-xs font-semibold text-accent-amber">
                         {patient.pending_sessions} pending
@@ -135,7 +135,7 @@ export default function QuickSessionPage() {
                     <div className="mt-2 h-1.5 bg-surface-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-brand-500 rounded-full transition-all duration-500"
-                        style={{ width: `${(patient.completed_sessions / patient.total_sessions) * 100}%` }}
+                        style={{ width: `${(patient.sessions_completed / patient.total_sessions) * 100}%` }}
                       />
                     </div>
                   </div>

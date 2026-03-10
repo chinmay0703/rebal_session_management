@@ -5,7 +5,11 @@ import Session from '@/models/Session';
 
 // Look up patient by mobile
 export async function POST(req: NextRequest) {
-  await connectDB();
+  try {
+    await connectDB();
+  } catch {
+    return NextResponse.json({ error: 'Server is starting up. Please try again.' }, { status: 503 });
+  }
   const { mobile } = await req.json();
 
   // Normalize mobile: strip non-digits and take last 10 digits

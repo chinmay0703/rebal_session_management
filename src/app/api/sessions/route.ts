@@ -38,7 +38,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  await connectDB();
+  try {
+    await connectDB();
+  } catch {
+    return NextResponse.json({ error: 'Server is starting up. Please try again.' }, { status: 503 });
+  }
   const { patient_id } = await req.json();
 
   const patient = await Patient.findById(patient_id).populate('package_id');

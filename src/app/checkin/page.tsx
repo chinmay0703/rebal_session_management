@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { ProgressBar } from '@/components/ui/components';
 import { Phone, CheckCircle2, AlertCircle, ArrowLeft, Loader2, Zap, Star, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 const GOOGLE_REVIEW_URL = 'https://www.google.com/search?q=rebalance+physiotherapy+reviews';
 const COOKIE_MOBILE_KEY = 'rb_mobile';
@@ -77,7 +78,7 @@ export default function CheckinPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/patients/checkin', {
+      const res = await fetchWithRetry('/api/patients/checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mobile: mobile.trim() }),
@@ -112,7 +113,7 @@ export default function CheckinPage() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/sessions', {
+      const res = await fetchWithRetry('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patient_id: checkinData.patient._id }),
@@ -155,7 +156,7 @@ export default function CheckinPage() {
     if (!checkinData) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/sessions', {
+      const res = await fetchWithRetry('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patient_id: checkinData.patient._id }),

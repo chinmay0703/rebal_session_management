@@ -296,10 +296,14 @@ function SessionsContent() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold text-surface-900">Sessions</h1>
-          <p className="text-surface-400 mt-1">Session history and records</p>
+          {!loading && (
+            <span className="px-2.5 py-1 bg-brand-50 text-brand-700 text-sm font-semibold rounded-full tabular-nums">
+              {sessions.length}
+            </span>
+          )}
         </div>
         <div className="flex gap-2">
           <Button variant="primary" size="sm" onClick={() => setSheetOpen(true)} icon={<Table className="w-4 h-4" />}>View</Button>

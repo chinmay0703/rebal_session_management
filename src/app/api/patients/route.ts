@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
+import { connectDB, ensureIndexes } from '@/lib/mongodb';
 import Patient from '@/models/Patient';
 import Session from '@/models/Session';
 
 export async function GET(req: NextRequest) {
+  const start = Date.now();
+
   try {
     await connectDB();
+    ensureIndexes(); // non-blocking, fire-and-forget
   } catch {
     return NextResponse.json({ error: 'Database connection failed' }, { status: 503 });
   }
@@ -13,13 +16,16 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const withStats = searchParams.get('stats') === 'true';
 
-  const patients = await Patient.find().populate('package_id').sort({ created_at: -1 });
+  // .lean() returns plain JS objects — skips Mongoose hydration, 2-5x faster
+  const patients = await Patient.find().populate('package_id').sort({ created_at: -1 }).lean();
 
   if (!withStats) {
-    return NextResponse.json(patients);
+    const response = NextResponse.json(patients);
+    response.headers.set('x-response-time', `${Date.now() - start}ms`);
+    return response;
   }
 
-  // Aggregate session counts and last session date per patient
+  // Aggregate session counts and last session date per patient (runs in MongoDB, not JS)
   const sessionStats = await Session.aggregate([
     {
       $group: {
@@ -31,14 +37,13 @@ export async function GET(req: NextRequest) {
   ]);
 
   const statsMap = new Map(
-    sessionStats.map((s: { _id: string; sessions_completed: number; last_session_date: Date }) => [
+    sessionStats.map((s: { _id: { toString(): string }; sessions_completed: number; last_session_date: Date }) => [
       s._id.toString(),
       { sessions_completed: s.sessions_completed, last_session_date: s.last_session_date },
     ])
   );
 
   const enriched = patients.map((p) => {
-    const pObj = p.toObject();
     const stats = statsMap.get(p._id.toString());
     const sessionsCompleted = stats?.sessions_completed || 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const packageName = (p.package_id as any)?.name || '';
     return {
-      ...pObj,
+      ...p,
       sessions_completed: sessionsCompleted,
       last_session_date: stats?.last_session_date || null,
       total_sessions: totalSessions,
@@ -55,7 +60,9 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json(enriched);
+  const response = NextResponse.json(enriched);
+  response.headers.set('x-response-time', `${Date.now() - start}ms`);
+  return response;
 }
 
 export async function POST(req: NextRequest) {

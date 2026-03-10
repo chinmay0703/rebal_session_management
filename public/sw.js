@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rebalance-v3';
+const CACHE_NAME = 'rebalance-v4';
 const STATIC_ASSETS = [
   '/',
   '/checkin',
@@ -29,16 +29,26 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // Network first for API calls
+  // Network first for API calls — never cache API errors
   if (event.request.url.includes('/api/')) {
     event.respondWith(
       fetch(event.request)
         .then((res) => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          // Only cache successful responses
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
           return res;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() =>
+          caches.match(event.request).then((cached) =>
+            cached || new Response(JSON.stringify({ error: 'You are offline' }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          )
+        )
     );
     return;
   }
@@ -47,8 +57,10 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request).then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
         return res;
       });
       return cached || fetchPromise;

@@ -8,8 +8,8 @@ export async function fetchWithRetry(
     try {
       const res = await fetch(url, options);
       if (res.ok) return res;
-      // Retry on server errors (502, 503, 504) and 408 timeout — common with free Mongo + Vercel cold starts
-      if ((res.status === 502 || res.status === 503 || res.status === 504 || res.status === 408) && attempt < retries) {
+      // Retry on server errors (500, 502, 503, 504) and 408 timeout — common with free Mongo + Vercel cold starts + service worker errors
+      if ((res.status >= 500 || res.status === 408) && attempt < retries) {
         await new Promise((r) => setTimeout(r, delay * (attempt + 1)));
         continue;
       }

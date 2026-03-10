@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Server is starting up. Please try again.' }, { status: 503 });
   }
-  const { patient_id } = await req.json();
+  const { patient_id, date } = await req.json();
 
   const patient = await Patient.findById(patient_id).populate('package_id');
   if (!patient) {
@@ -58,35 +58,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'All sessions in this package have been completed' }, { status: 400 });
   }
 
-  // Prevent more than one session per day
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
-  const todaySession = await Session.findOne({
+  // Determine session date (today or backdated)
+  const sessionDate = date ? new Date(date) : new Date();
+
+  // Validate backdate: cannot be in the future
+  if (date) {
+    const now = new Date();
+    now.setHours(23, 59, 59, 999);
+    if (sessionDate > now) {
+      return NextResponse.json({ error: 'Cannot add a session for a future date' }, { status: 400 });
+    }
+  }
+
+  // Prevent more than one session per day (for the target date)
+  const dayStart = new Date(sessionDate);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(sessionDate);
+  dayEnd.setHours(23, 59, 59, 999);
+  const existingSession = await Session.findOne({
     patient_id,
-    scan_time: { $gte: todayStart, $lte: todayEnd },
+    scan_time: { $gte: dayStart, $lte: dayEnd },
   });
 
-  if (todaySession) {
-    return NextResponse.json({ error: 'Session already recorded for today. Only one session per day is allowed.' }, { status: 400 });
+  if (existingSession) {
+    const dateLabel = date ? new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'today';
+    return NextResponse.json({ error: `Session already recorded for ${dateLabel}. Only one session per day is allowed.` }, { status: 400 });
+  }
+
+  // Set time to midday for backdated sessions to avoid timezone edge cases
+  if (date) {
+    sessionDate.setHours(12, 0, 0, 0);
   }
 
   const session = await Session.create({
     patient_id,
     session_number: completedSessions + 1,
-    scan_time: new Date(),
+    scan_time: sessionDate,
   });
 
   const newCompleted = completedSessions + 1;
   const remaining = totalSessions - newCompleted;
 
   // Create session started notification
+  const dateNote = date ? ` (backdated: ${new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})` : '';
   await Notification.create({
     type: 'session_started',
     patient_name: patient.name,
     patient_mobile: patient.mobile,
-    message: `${patient.name} started session ${newCompleted}/${totalSessions}`,
+    message: `${patient.name} started session ${newCompleted}/${totalSessions}${dateNote}`,
   });
 
   // Alert if patient has 3 or fewer sessions remaining

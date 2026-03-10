@@ -197,3 +197,12 @@ body {
 .splash-dot-1 { animation: splash-dot-bounce 1.2s ease-in-out infinite 0s; }
 .splash-dot-2 { animation: splash-dot-bounce 1.2s ease-in-out infinite 0.15s; }
 .splash-dot-3 { animation: splash-dot-bounce 1.2s ease-in-out infinite 0.3s; }
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

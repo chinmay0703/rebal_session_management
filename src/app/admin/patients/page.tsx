@@ -107,18 +107,19 @@ export default function PatientsPage() {
       <SearchInput value={search} onChange={setSearch} placeholder="Search by name or mobile..." />
 
       {/* Status Filter Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
         {(['all', 'active', 'completed', 'expired'] as const).map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
-            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap cursor-pointer min-w-[70px] ${
+            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap cursor-pointer ${
               statusFilter === status
                 ? 'bg-brand-600 text-white shadow-sm'
                 : 'bg-white text-surface-500 border border-surface-200 hover:bg-surface-50'
             }`}
           >
-            {status.charAt(0).toUpperCase() + status.slice(1)} ({counts[status]})
+            {status.charAt(0).toUpperCase() + status.slice(1)}{' '}
+            <span className="tabular-nums">({counts[status]})</span>
           </button>
         ))}
       </div>

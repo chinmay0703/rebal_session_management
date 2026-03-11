@@ -211,7 +211,7 @@ function SessionsContent() {
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [patientFilter, setPatientFilter] = useState(initialPatient);
-  const [dateFilter, setDateFilter] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dateFilter, setDateFilter] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -233,6 +233,11 @@ function SessionsContent() {
     }
   }, [patientFilter, dateFilter]);
 
+  // Set today's date on mount (client-only to avoid hydration mismatch)
+  useEffect(() => {
+    setDateFilter(new Date().toISOString().split('T')[0]);
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     fetchWithRetry('/api/patients', { signal: controller.signal })
@@ -243,10 +248,11 @@ function SessionsContent() {
   }, []);
 
   useEffect(() => {
+    if (!dateFilter) return; // Wait for client-side date init
     const controller = new AbortController();
     load(controller.signal);
     return () => controller.abort();
-  }, [load]);
+  }, [load, dateFilter]);
 
   const exportCSV = async () => {
     try {
